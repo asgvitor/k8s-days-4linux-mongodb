@@ -1,0 +1,122 @@
+apiVersion: apps/v1   
+kind: StatefulSet
+metadata:
+  name: mongo
+spec:
+  serviceName: "mongo-service"
+  replicas: 3
+  selector:
+    matchLabels:
+      role: mongo
+  template:
+    metadata:
+      labels:
+        role: mongo
+    spec:
+      volumes:
+        - name: mongo-keyfile
+          secret:
+            secretName: mongo-keyfile-secret
+            defaultMode: 0o400
+      containers:
+        - name: mongo
+          image: docker.io/mongo:6.0.1
+          command:
+            - mongod
+            - "--replSet=k8sdays_rs"
+            - "--bind_ip_all"
+            - "--oplogSize=1024"
+            - "--wiredTigerCacheSizeGB=0.25"
+            - "--auth"
+            - "--directoryperdb"
+            - "--keyFile=/etc/mongo/keyfile"  
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-secret
+                  key: username
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-secret
+                  key: password
+            - name: MONGODB_REPLICA_SET_NAME
+              value: k8sdays
+          ports:
+            - containerPort: 27017
+          volumeMounts:
+            - name: mongo-storage
+              mountPath: /data/db
+            - name: mongo-keyfile
+              mountPath: /etc/mongo/keyfile
+              subPath: ./keyfile
+              readOnly: true
+          resources:
+            limits:
+              cpu: 1
+              memory: 1Gi
+            requests:
+              memory: 1Gi
+  volumeClaimTemplates:
+  - metadata:
+      name: mongo-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: standard-rwo
+      resources:
+        requests:
+          storage: 20Gi
+
+---
+
+apiVersion: v1  
+kind: Service
+metadata:
+  name: mongo-service
+  labels:
+    name: mongo
+spec:
+  ports:
+  - port: 27017
+    targetPort: 27017
+  clusterIP: None
+  selector:
+    role: mongo
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mongo-secret 
+type: Opaque
+data:
+  username: YWRtaW4=
+  password: YWRtaW4=
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mongo-keyfile-secret
+data:
+  keyfile: |
+    Tk9DVDAyU0hweld0VDVNL2NUOHBOTHJrbUNPZUQxaGdoV1R2Y1VTMThUMTlnRC9wcHI5WmdNbFhX
+    MmlkcE5ScApQVU1vczUvV1RCdVk2dXZXMHh1N1ZjTWFCNHNndjAwcGsrRnYwd2sreXdhcWRtNlZs
+    eGdWMlNYbXVRYWhPd1hpCjcreTBDMHFjbFo0bk1SZE9uYXd0U21EL3VLUVVDUGtLRE92OVlnbGNK
+    eUV2cjBkRzY3ZFRPQ3lzNFNuTWtYREsKeWN4Q3RXZ1F0KzNEMVpSMVVCS3B5Wm1rMzg2VHNqeHAr
+    V2hhMUlFdzV0R0l6amh1aExhZ2FSUVFVTkpKSm5zdQoyaUZlM3FkaURpZ2hsYkxEaUwxSS9QWm84
+    VmlhclZuNEkrQzFYYWtqT3dsSEJaODF3eDBWaXg1NzhpOHNHcnNmCnZ2cW03N29IajZFaXByWmsy
+    bGNoaEJpUnVoR01QTEJGai9UWGozSHp4TTM3TWVLc1JERENaTEkyYk4vaWh5czYKL1hZN3dndlhN
+    czdXUEIzQjRrYm5tb3N2VTlla1FCdmNyY1hoTHN5bytUUUV6K3U0Tmcwd1hFUXc4SFkyUngyVwp6
+    bUlaWGhtWDh4UlI4Y29GSEpvVWxpdVJXRXl4QjVkZER0SytzVWxoWDhSSnBwUjZKZkNRcXBjVHUx
+    MjBTaThkCnAxQmRjdkJ6UnB1VzZPcjE2Mjg3c05CMXpGb1dBOWRLNjhLWEQ5cXdPVm1vZ1hQSWh2
+    WmZBZEpwZ3Rlcko2QmcKRmlvNWZ2VEFOZ1FwS3JEMzRqMTJmUU9kTU5jOE1jVERaVXZhS3V3WkNr
+    WTEwOENVVFFjMWlOa1pycHdEdGFFUQowTEEyM0VwNWNZazVJVG54dGk5NjdFYVRwQzM1RDZqbGlx
+    a1h0QTJScVlFdnhUZ0NCYXEwRU9mSlNXYzJzLzNYClVLbXJFODM2NzRvVGZiQnR5WGhxNEtZOVFG
+    bElyMmpKWHZJRnV6VVRJREc2a2VNOUVEcVpxVHhGSUhIZUhxYW0KanRIT2FCbm1HV1NvMzhyU0ww
+    emtFbzZkVVd2OE55Q290a1JlcTFtT3p3QWJrUkQvRFllMVlwWi9aZWZqU3JpbAppa2JqS2FPaUo2
+    anRZb1VTcDNVbUlwUWxacEExb2R4Umw5Zm5jSk1KdnorZWd0S3BJRDVpcnhMTWlmdzU0MlhhCi9m
+    aFovSnRpeHBXQzBQU1ZBdmxkZjR3MEFQbjZLRWVramdZaUZEUmVRUVR3aGFiZi9INkhoSWRSOVFh
+    TFp2OGYKL1ZSaGhSMiswZ28wekRCcFNxWlJGampIeFVkcgo=
